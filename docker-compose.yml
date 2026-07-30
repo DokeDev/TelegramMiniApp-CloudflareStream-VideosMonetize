@@ -1,0 +1,43 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        VITE_API_BASE_URL: ""
+    env_file:
+      - .env.production
+    environment:
+      APP_ENV: production
+      HOST: 0.0.0.0
+      PORT: 18763
+      SERVE_FRONTEND: "true"
+      FRONTEND_DIST_DIR: /app/frontend/dist
+      DATABASE_URL: mysql://tgwebapp:${MYSQL_PASSWORD}@mysql:3306/tgwebapp
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "18763:18763"
+    command: >
+      sh -c "npx prisma migrate deploy --schema backend/prisma/schema.prisma
+      && node backend/dist/src/index.js"
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: tgwebapp
+      MYSQL_USER: tgwebapp
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mysql-data:

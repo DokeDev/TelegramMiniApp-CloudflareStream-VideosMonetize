@@ -10,6 +10,8 @@
     "start": "node dist/src/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "smoke": "tsx src/smoke.ts",
+    "setup:webhook": "tsx src/setup-webhook.ts",
+    "check:prod-env": "tsx src/check-prod-env.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts"

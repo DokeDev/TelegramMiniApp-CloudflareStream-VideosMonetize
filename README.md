@@ -32,7 +32,7 @@ Telegram Mini App
 
 这套模式的核心目标不是“绝对防录屏”，而是把视频售卖业务拆成几个边界清晰、可控、可追踪的环节：
 
-- Telegram 负责用户入口、Mini App 运行环境和 Telegram Payments 支付入口。
+- Telegram 负责用户入口、Mini App 运行环境和 Telegram Stars 支付入口。
 - Node.js 后端负责真正的业务判断：谁买了、买了什么、是否有权限、能不能播放。
 - MySQL 负责保存可审计的数据：订单、权限、播放 session、播放事件、后台操作日志。
 - Cloudflare Stream 负责视频上传、转码、播放分发和 signed playback，避免自己维护复杂的视频处理链路。
@@ -53,8 +53,7 @@ Telegram Mini App
 
 - 视频列表展示
 - 视频价格展示
-- 本地浏览器模拟购买
-- Telegram Mini App 环境下支持 Telegram Payments 发票
+- Telegram Mini App 环境下支持 Telegram Stars 发票
 - 已购买视频播放入口
 - 播放器层官方水印
 - 播放器层订单号水印
@@ -62,23 +61,18 @@ Telegram Mini App
 - 播放事件上报：play、pause、heartbeat、ended
 - 播放 session 创建
 - 单用户并发播放限制
-- 本地支付方式选择：
-  - 模拟支付
-  - 手动支付
-  - USDT 占位
-  - Stripe 占位
 
 ### 后台管理
 
 - 管理员密码登录
 - 运营概览
 - Telegram Bot Token 配置和测试
-- Telegram Payments 配置
+- Telegram Stars 支付开关
 - Cloudflare Stream 配置和测试
 - Cloudflare Stream 视频拉取
 - Cloudflare 视频导入本地视频库
 - 视频创建、编辑、上架、下架、归档
-- 支付方式管理
+- Stars 订单管理
 - 订单列表
 - 订单筛选
 - 订单详情
@@ -105,8 +99,8 @@ Telegram Mini App
 - Telegram initData 校验
 - 开发环境模拟 Telegram 用户
 - Prisma + MySQL 数据模型
-- Telegram Payments 发票创建
-- Telegram Payment Webhook 处理
+- Telegram Stars 发票创建
+- Telegram Stars Webhook 处理
 - Cloudflare Stream signed token 播放链接
 - 活动日志记录
 - 播放事件记录
@@ -119,7 +113,7 @@ Telegram Mini App
 - 后端：Node.js + TypeScript + Fastify
 - 数据库：MySQL 8.0 + Prisma
 - 视频：Cloudflare Stream
-- 支付：Telegram Payments，外加本地模拟支付和占位支付方式
+- 支付：Telegram Stars
 - 图标：lucide-react
 
 ## 目录结构
@@ -174,7 +168,11 @@ cp .env.example backend/.env
 
 ```text
 DATABASE_URL=mysql://root:你的密码@127.0.0.1:3306/tgwebapp
+ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
+ADMIN_SESSION_SECRET=local-dev-admin-session-secret
+ADMIN_SESSION_BINDING=user-agent
+ADMIN_ALLOW_PASSWORD_HEADER=false
 ```
 
 安装依赖：
@@ -200,10 +198,24 @@ npm run dev
 默认访问地址：
 
 ```text
-前台：http://localhost:5173
-后台：http://localhost:5173/admin
-后端：http://localhost:8000
+前台：http://localhost:19327
+后台：http://localhost:19327/cpl
+后端：http://localhost:18763
 ```
+
+## 生产部署
+
+生产部署说明见：[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
+
+部署阶段建议使用同源模式：
+
+```text
+https://your-domain.example/
+https://your-domain.example/cpl
+https://your-domain.example/api/...
+```
+
+后端可以设置 `SERVE_FRONTEND=true`，直接托管 `frontend/dist`，这样服务器只需要反向代理一个 Node.js 端口。
 
 ## 常用命令
 
@@ -223,14 +235,27 @@ npm run seed
 
 ```text
 APP_ENV=development
-PORT=8000
+PORT=18763
 HOST=127.0.0.1
-FRONTEND_ORIGIN=http://localhost:5173
+TRUST_PROXY=false
+BODY_LIMIT_BYTES=1048576
+FRONTEND_ORIGIN=http://localhost:19327
+SECURITY_HEADERS_ENABLED=true
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_WINDOW_SECONDS=60
+RATE_LIMIT_MAX=240
+ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
+ADMIN_SESSION_SECRET=change-this-local-session-secret
+ADMIN_SESSION_TTL_SECONDS=43200
+ADMIN_SESSION_BINDING=user-agent
+ADMIN_LOGIN_MAX_ATTEMPTS=8
+ADMIN_LOGIN_WINDOW_SECONDS=600
+ADMIN_LOGIN_LOCK_SECONDS=900
+ADMIN_ALLOW_PASSWORD_HEADER=false
 DATABASE_URL=mysql://user:password@127.0.0.1:3306/tgwebapp
 
 TELEGRAM_BOT_TOKEN=
-TELEGRAM_PAYMENT_PROVIDER_TOKEN=
 DEV_TELEGRAM_USER_ID=10001
 DEV_TELEGRAM_USERNAME=devbuyer
 
@@ -242,40 +267,33 @@ TOKEN_TTL_SECONDS=900
 DEMO_CLOUDFLARE_VIDEO_UID=
 
 OFFICIAL_WATERMARK_TEXT=Official
-MOCK_PAYMENTS=true
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:18763
 VITE_TELEGRAM_BOT_USERNAME=
 ```
 
 真实密钥请只写入 `.env` 或后台配置，不要提交到 Git。
 
+后台登录默认使用用户名 + 密码换取短期 token，后台 API 不再默认接受 `x-admin-password` 直连。`ADMIN_SESSION_BINDING=user-agent` 会把 token 绑定到当前浏览器环境，降低 token 被复制后的可用性。
+
 ## 本地开发流程
 
-本地普通浏览器没有 Telegram Mini App 的 `openInvoice` 环境，因此默认使用本地支付流程。
+本地普通浏览器没有 Telegram Mini App 的 `openInvoice` 环境，因此前台购买会提示在 Telegram Mini App 内打开。本地需要验证支付闭环时，使用后台开发工具创建 `telegram_stars` 测试订单并模拟 Telegram 回调。
 
 推荐测试顺序：
 
 ```text
 后台创建或导入视频
-  -> 前台选择支付方式并购买
-  -> 后台订单页查看订单详情
-  -> 待支付订单手动标记支付
+  -> 后台开发工具创建 Telegram Stars 测试订单
+  -> 点击“模拟 Telegram 支付”
   -> 前台刷新后播放
   -> 后台播放页查看 session 和事件
   -> 后台日志页查看完整操作记录
 ```
 
-本地支付方式说明：
-
-- 模拟支付：创建订单后立即标记为已支付，并自动发放观看权限。
-- 手动支付：创建待支付订单，需要后台手动标记支付。
-- USDT：当前为本地占位流程，创建待支付订单。
-- Stripe：当前为本地占位流程，创建待支付订单。
-
 开发工具页还提供“模拟 Telegram 支付”：
 
 ```text
-创建一笔 provider=telegram 的待支付测试订单
+创建一笔 provider=telegram_stars 的待支付测试订单
   -> 订单号自动填入“模拟回调订单号”
   -> 点击“模拟 Telegram 支付”
   -> 后端按 Telegram successful_payment 逻辑标记订单 PAID
@@ -291,15 +309,7 @@ npm run smoke
 
 该脚本会检查后端健康状态、创建一笔 Telegram 待支付测试订单、模拟 Telegram 支付成功、验证订单变为 `PAID` 且权限为 `ACTIVE`，并检查活动日志是否写入。
 
-## Telegram Payments
-
-在 BotFather 中配置：
-
-```text
-/mybots -> 选择 Bot -> Bot Settings -> Payments
-```
-
-获取 Payment Provider Token 后，在后台“支付”页填写并启用 Telegram Payments。
+## Telegram Stars
 
 支付链路：
 
@@ -319,6 +329,70 @@ Mini App 点击购买
 ```text
 https://你的域名/api/telegram/webhook
 ```
+
+## 独立 H5 积分充值对接
+
+Mini App 内的数字内容购买保持使用 Telegram Stars。独立 H5 充值系统如果需要给项目积分入账，建议作为单独服务运行，并由外部服务端调用本项目预留接口，不要把接口密钥暴露给浏览器前端。
+
+推荐流程：
+
+```text
+用户在独立 H5 输入 @username
+  -> 独立 H5 服务端调用 /api/external/users/lookup 查项目账号
+  -> H5 展示项目返回的账号信息，让用户确认
+  -> 用户选择套餐并完成外部支付
+  -> 外部支付回调到独立 H5 服务端
+  -> 独立 H5 服务端调用 /api/external/credits/recharge 给锁定的 telegramUserId 入账
+```
+
+所有外部接口都需要请求头：
+
+```text
+x-external-recharge-secret: 你的 EXTERNAL_RECHARGE_SECRET
+```
+
+查账号接口：
+
+```http
+POST /api/external/users/lookup
+Content-Type: application/json
+
+{
+  "username": "@TestUser"
+}
+```
+
+说明：
+
+- `username` 会自动去掉 `@` 并按小写匹配。
+- 项目展示仍使用数据库中保存的 Telegram 原始用户名大小写。
+- 找不到时，提示用户先打开一次 Mini App 完成账号识别。
+- 查到后，外部支付订单应锁定返回的 `telegramUserId`，不要在支付成功后重新按 username 查询。
+
+充值到账接口：
+
+```http
+POST /api/external/credits/recharge
+Content-Type: application/json
+
+{
+  "requestId": "h5-order-20260715-0001",
+  "telegramUserId": "123456789",
+  "username": "@TestUser",
+  "amount": 320,
+  "provider": "external_h5",
+  "externalPaymentId": "pay-0001",
+  "note": "独立 H5 积分充值"
+}
+```
+
+说明：
+
+- `requestId` 必须全局唯一，用于幂等，重复回调不会重复加积分。
+- 入账只按 `telegramUserId`，`username` 仅用于校验和记录。
+- 目标用户必须已经打开过 Mini App 并存在于项目数据库中。
+- 被封禁用户不能充值。
+- 独立 H5 充值涉及支付渠道和平台规则风险，正式使用前需要自行确认合规性。
 
 ## Cloudflare Stream
 
@@ -437,7 +511,7 @@ Cloudflare Stream signed playback 可以降低固定播放链接被长期传播�
 - 配置 HTTPS 域名
 - 配置 Telegram Mini App URL
 - 配置 Telegram Bot Webhook
-- 配置真实 Telegram Payment Provider Token
+- 启用 Telegram Stars 支付并验证 Webhook
 - 配置 Cloudflare Stream 私密播放
 - 修改强后台密码
 - 配置数据库备份
@@ -453,7 +527,7 @@ Cloudflare Stream signed playback 可以降低固定播放链接被长期传播�
 
 ### 购买后没有权限
 
-检查订单是否还是 `PENDING`。手动支付、USDT、Stripe 占位流程需要后台标记支付后才会发放权限。
+检查订单是否还是 `PENDING`。如果是 Stars 订单，重点检查 Telegram Webhook 是否配置成功、`pre_checkout_query` 是否被确认、`successful_payment` 是否到达后端。
 
 ### 播放被拒绝
 

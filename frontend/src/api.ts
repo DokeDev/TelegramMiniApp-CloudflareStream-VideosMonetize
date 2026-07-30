@@ -1,12 +1,19 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:18763';
 
 export type Video = {
   id: number;
   title: string;
   description: string | null;
+  thumbnailUrl?: string | null;
   priceCents: number;
+  priceCredits: number;
   currency: string;
   hasAccess: boolean;
+  series: {
+    id: number;
+    title: string;
+    slug: string;
+  } | null;
 };
 
 export type PlayResponse = {
@@ -55,13 +62,13 @@ export async function apiFetch<T>(
 
 export async function adminFetch<T>(
   path: string,
-  adminPassword: string,
+  adminCredential: string,
   options: RequestInit = {},
 ): Promise<T> {
   return apiFetch<T>(path, {
     ...options,
     headers: {
-      'x-admin-password': adminPassword,
+      authorization: `Bearer ${adminCredential}`,
       ...options.headers,
     },
   });

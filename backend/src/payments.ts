@@ -22,7 +22,7 @@ type TelegramUpdate = {
       total_amount: number;
       invoice_payload: string;
       telegram_payment_charge_id: string;
-      provider_payment_charge_id: string;
+      provider_payment_charge_id?: string;
     };
   };
 };
@@ -59,23 +59,41 @@ export function paymentPayload(orderCode: string) {
   return `order:${orderCode}`;
 }
 
-function orderCodeFromPayload(payload: string) {
-  if (!payload.startsWith('order:')) {
-    return null;
+export function rechargePaymentPayload(orderCode: string) {
+  return `recharge:${orderCode}`;
+}
+
+export function starsAmountForVideo(video: { priceCents: number; currency: string }) {
+  if (video.currency === 'XTR') {
+    return Math.max(1, video.priceCents);
   }
 
-  return payload.slice('order:'.length);
+  return Math.max(1, Math.ceil(video.priceCents / 100));
+}
+
+function parsePaymentPayload(payload: string) {
+  if (payload.startsWith('order:')) {
+    return {
+      type: 'order' as const,
+      orderCode: payload.slice('order:'.length),
+    };
+  }
+
+  if (payload.startsWith('recharge:')) {
+    return {
+      type: 'recharge' as const,
+      orderCode: payload.slice('recharge:'.length),
+    };
+  }
+
+  return null;
 }
 
 export async function createTelegramInvoiceLink(orderId: number) {
   const settings = await getRuntimeSettings();
 
   if (!settings.telegramPaymentsEnabled) {
-    throw new Error('Telegram Payments 未启用');
-  }
-
-  if (!settings.telegramPaymentProviderToken) {
-    throw new Error('Telegram Payment Provider Token 未配置');
+    throw new Error('Telegram Stars 支付未启用');
   }
 
   const order = await prisma.order.findUniqueOrThrow({
@@ -89,12 +107,41 @@ export async function createTelegramInvoiceLink(orderId: number) {
     title: order.video.title,
     description: order.video.description || order.video.title,
     payload: paymentPayload(order.orderCode),
-    provider_token: settings.telegramPaymentProviderToken,
-    currency: order.currency,
+    provider_token: '',
+    currency: 'XTR',
     prices: [
       {
         label: order.video.title,
         amount: order.amountCents,
+      },
+    ],
+  });
+}
+
+export async function createCreditRechargeInvoiceLink(rechargeOrderId: number) {
+  const settings = await getRuntimeSettings();
+
+  if (!settings.telegramPaymentsEnabled) {
+    throw new Error('Telegram Stars 支付未启用');
+  }
+
+  const order = await prisma.rechargeOrder.findUniqueOrThrow({
+    where: { id: rechargeOrderId },
+    include: {
+      package: true,
+    },
+  });
+
+  return telegramApi<string>('createInvoiceLink', {
+    title: '使用 Stars 兑换积分',
+    description: `${order.starsAmount}Stars = ${order.creditsAmount}积分`,
+    payload: rechargePaymentPayload(order.orderCode),
+    provider_token: '',
+    currency: 'XTR',
+    prices: [
+      {
+        label: order.package.title,
+        amount: order.starsAmount,
       },
     ],
   });
@@ -118,7 +165,7 @@ export async function markOrderPaidFromTelegram(
     currency: string;
     total_amount: number;
     telegram_payment_charge_id: string;
-    provider_payment_charge_id: string;
+    provider_payment_charge_id?: string;
   },
 ) {
   const order = await prisma.order.findUniqueOrThrow({
@@ -137,7 +184,7 @@ export async function markOrderPaidFromTelegram(
       where: { id: order.id },
       data: {
         status: 'PAID',
-        provider: 'telegram',
+        provider: 'telegram_stars',
         providerPaymentId:
           payment.provider_payment_charge_id ||
           payment.telegram_payment_charge_id,
@@ -165,7 +212,7 @@ export async function markOrderPaidFromTelegram(
     action: 'payment.telegram_paid',
     entityType: 'order',
     entityId: order.id,
-    message: `Telegram 支付成功：${order.orderCode}`,
+    message: `Telegram Stars 支付成功：${order.orderCode}`,
     metadata: {
       providerPaymentId:
         payment.provider_payment_charge_id ||
@@ -174,26 +221,126 @@ export async function markOrderPaidFromTelegram(
   });
 }
 
+export async function markRechargePaidFromTelegram(
+  orderCode: string,
+  payment: {
+    currency: string;
+    total_amount: number;
+    telegram_payment_charge_id: string;
+    provider_payment_charge_id?: string;
+  },
+) {
+  const order = await prisma.rechargeOrder.findUniqueOrThrow({
+    where: { orderCode },
+  });
+
+  if (
+    order.currency !== payment.currency ||
+    order.starsAmount !== payment.total_amount
+  ) {
+    throw new Error('Telegram recharge amount does not match order');
+  }
+
+  const paidOrder = await prisma.$transaction(async (tx) => {
+    const updatedOrder = await tx.rechargeOrder.update({
+      where: { id: order.id },
+      data: {
+        status: 'PAID',
+        provider: 'telegram_stars',
+        providerPaymentId:
+          payment.provider_payment_charge_id ||
+          payment.telegram_payment_charge_id,
+        paidAt: new Date(),
+      },
+    });
+    const updatedUser = await tx.user.update({
+      where: { id: order.userId },
+      data: {
+        creditBalance: {
+          increment: order.creditsAmount,
+        },
+      },
+    });
+
+    await tx.creditTransaction.create({
+      data: {
+        userId: order.userId,
+        rechargeOrderId: order.id,
+        amount: order.creditsAmount,
+        balanceAfter: updatedUser.creditBalance,
+        type: 'stars_exchange',
+        note: `使用 Stars 兑换积分：${order.starsAmount}Stars = ${order.creditsAmount}积分`,
+      },
+    });
+
+    return updatedOrder;
+  });
+
+  await logActivity({
+    actorType: 'system',
+    action: 'credits.stars_exchanged',
+    entityType: 'rechargeOrder',
+    entityId: paidOrder.id,
+    message: `使用 Stars 兑换积分成功：${paidOrder.orderCode}`,
+    metadata: {
+      providerPaymentId:
+        payment.provider_payment_charge_id ||
+        payment.telegram_payment_charge_id,
+      starsAmount: paidOrder.starsAmount,
+      creditsAmount: paidOrder.creditsAmount,
+    },
+  });
+}
+
+async function findPaymentForPreCheckout(payload: {
+  type: 'order' | 'recharge';
+  orderCode: string;
+}) {
+  if (payload.type === 'order') {
+    const order = await prisma.order.findUnique({
+      where: { orderCode: payload.orderCode },
+    });
+
+    return order
+      ? {
+          status: order.status,
+          currency: order.currency,
+          amount: order.amountCents,
+        }
+      : null;
+  }
+
+  const order = await prisma.rechargeOrder.findUnique({
+    where: { orderCode: payload.orderCode },
+  });
+
+  return order
+    ? {
+        status: order.status,
+        currency: order.currency,
+        amount: order.starsAmount,
+      }
+    : null;
+}
+
 export async function handleTelegramPaymentUpdate(update: TelegramUpdate) {
   const preCheckout = update.pre_checkout_query;
 
   if (preCheckout) {
-    const orderCode = orderCodeFromPayload(preCheckout.invoice_payload);
+    const payload = parsePaymentPayload(preCheckout.invoice_payload);
 
-    if (!orderCode) {
+    if (!payload) {
       await answerPreCheckoutQuery(preCheckout.id, false, '订单无效');
       return { ok: true, handled: 'pre_checkout_rejected' };
     }
 
-    const order = await prisma.order.findUnique({
-      where: { orderCode },
-    });
+    const payment = await findPaymentForPreCheckout(payload);
 
     if (
-      !order ||
-      order.status === 'PAID' ||
-      order.currency !== preCheckout.currency ||
-      order.amountCents !== preCheckout.total_amount
+      !payment ||
+      payment.status === 'PAID' ||
+      payment.currency !== preCheckout.currency ||
+      payment.amount !== preCheckout.total_amount
     ) {
       await answerPreCheckoutQuery(preCheckout.id, false, '订单状态或金额不匹配');
       return { ok: true, handled: 'pre_checkout_rejected' };
@@ -206,10 +353,14 @@ export async function handleTelegramPaymentUpdate(update: TelegramUpdate) {
   const successfulPayment = update.message?.successful_payment;
 
   if (successfulPayment) {
-    const orderCode = orderCodeFromPayload(successfulPayment.invoice_payload);
+    const payload = parsePaymentPayload(successfulPayment.invoice_payload);
 
-    if (orderCode) {
-      await markOrderPaidFromTelegram(orderCode, successfulPayment);
+    if (payload?.type === 'order') {
+      await markOrderPaidFromTelegram(payload.orderCode, successfulPayment);
+    }
+
+    if (payload?.type === 'recharge') {
+      await markRechargePaidFromTelegram(payload.orderCode, successfulPayment);
     }
 
     return { ok: true, handled: 'successful_payment' };

@@ -7,18 +7,38 @@ async function main() {
   const cloudflareVideoUid =
     process.env.DEMO_CLOUDFLARE_VIDEO_UID || 'demo-video-uid';
 
-  await prisma.video.upsert({
-    where: { id: 1 },
+  const series = await prisma.series.upsert({
+    where: { slug: 'default-series' },
     update: {
-      cloudflareVideoUid,
       status: 'ACTIVE',
     },
     create: {
+      title: '默认系列',
+      description: '用于本地开发和视频归类。',
+      slug: 'default-series',
+      status: 'ACTIVE',
+      sortOrder: 0,
+    },
+  });
+
+  await prisma.video.upsert({
+    where: { id: 1 },
+    update: {
+      seriesId: series.id,
+      cloudflareVideoUid,
+      priceCents: 300,
+      priceCredits: 280,
+      currency: 'XTR',
+      status: 'ACTIVE',
+    },
+    create: {
+      seriesId: series.id,
       title: '示例私密视频',
       description: '用于本地开发和播放器水印调试。',
       cloudflareVideoUid,
-      priceCents: 990,
-      currency: 'USD',
+      priceCents: 300,
+      priceCredits: 280,
+      currency: 'XTR',
       status: 'ACTIVE',
     },
   });

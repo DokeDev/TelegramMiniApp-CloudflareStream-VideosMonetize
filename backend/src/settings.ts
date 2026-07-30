@@ -4,10 +4,9 @@ import { prisma } from './db.js';
 export const settingKeys = {
   telegramBotToken: 'telegram.botToken',
   telegramPaymentsEnabled: 'payments.telegram.enabled',
-  telegramPaymentProviderToken: 'payments.telegram.providerToken',
-  legacyTelegramPaymentProviderToken: 'telegram.paymentProviderToken',
   cloudflareAccountId: 'cloudflare.accountId',
   cloudflareApiToken: 'cloudflare.apiToken',
+  cloudflareCustomerSubdomain: 'cloudflare.customerSubdomain',
   cloudflareStreamSigningKeyId: 'cloudflare.streamSigningKeyId',
   cloudflareStreamSigningPrivateKey: 'cloudflare.streamSigningPrivateKey',
   demoCloudflareVideoUid: 'cloudflare.demoVideoUid',
@@ -18,9 +17,9 @@ export const settingKeys = {
 export type RuntimeSettings = {
   telegramBotToken?: string;
   telegramPaymentsEnabled: boolean;
-  telegramPaymentProviderToken?: string;
   cloudflareAccountId?: string;
   cloudflareApiToken?: string;
+  cloudflareCustomerSubdomain?: string;
   cloudflareStreamSigningKeyId?: string;
   cloudflareStreamSigningPrivateKey?: string;
   demoCloudflareVideoUid?: string;
@@ -30,10 +29,10 @@ export type RuntimeSettings = {
 
 const envFallbacks: RuntimeSettings = {
   telegramBotToken: config.TELEGRAM_BOT_TOKEN,
-  telegramPaymentsEnabled: false,
-  telegramPaymentProviderToken: config.TELEGRAM_PAYMENT_PROVIDER_TOKEN,
+  telegramPaymentsEnabled: true,
   cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
   cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
+  cloudflareCustomerSubdomain: config.CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN,
   cloudflareStreamSigningKeyId: config.CLOUDFLARE_STREAM_SIGNING_KEY_ID,
   cloudflareStreamSigningPrivateKey:
     config.CLOUDFLARE_STREAM_SIGNING_PRIVATE_KEY,
@@ -71,10 +70,6 @@ function cleanNumber(value: string | null | undefined) {
 export async function getRuntimeSettings(): Promise<RuntimeSettings> {
   const rows = await prisma.appSetting.findMany();
   const byKey = new Map(rows.map((row) => [row.key, row.value]));
-  const telegramPaymentProviderToken =
-    clean(byKey.get(settingKeys.telegramPaymentProviderToken)) ||
-    clean(byKey.get(settingKeys.legacyTelegramPaymentProviderToken)) ||
-    clean(envFallbacks.telegramPaymentProviderToken);
   const configuredTelegramEnabled = cleanBoolean(
     byKey.get(settingKeys.telegramPaymentsEnabled),
   );
@@ -84,14 +79,16 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
       clean(byKey.get(settingKeys.telegramBotToken)) ||
       clean(envFallbacks.telegramBotToken),
     telegramPaymentsEnabled:
-      configuredTelegramEnabled ?? Boolean(telegramPaymentProviderToken),
-    telegramPaymentProviderToken,
+      configuredTelegramEnabled ?? envFallbacks.telegramPaymentsEnabled,
     cloudflareAccountId:
       clean(byKey.get(settingKeys.cloudflareAccountId)) ||
       clean(envFallbacks.cloudflareAccountId),
     cloudflareApiToken:
       clean(byKey.get(settingKeys.cloudflareApiToken)) ||
       clean(envFallbacks.cloudflareApiToken),
+    cloudflareCustomerSubdomain:
+      clean(byKey.get(settingKeys.cloudflareCustomerSubdomain)) ||
+      clean(envFallbacks.cloudflareCustomerSubdomain),
     cloudflareStreamSigningKeyId:
       clean(byKey.get(settingKeys.cloudflareStreamSigningKeyId)) ||
       clean(envFallbacks.cloudflareStreamSigningKeyId),

@@ -32,18 +32,24 @@ export function parseAndValidateTelegramInitData(
   }
 
   if (!initData) {
-    throw new Error('Missing Telegram initData');
+    const error = new Error('请从 Telegram 中打开你的 Bot');
+    Object.assign(error, { statusCode: 401 });
+    throw error;
   }
 
   if (!botToken) {
-    throw new Error('Missing TELEGRAM_BOT_TOKEN');
+    const error = new Error('Missing TELEGRAM_BOT_TOKEN');
+    Object.assign(error, { statusCode: 500 });
+    throw error;
   }
 
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
 
   if (!hash) {
-    throw new Error('Missing Telegram initData hash');
+    const error = new Error('请从 Telegram 中打开你的 Bot');
+    Object.assign(error, { statusCode: 401 });
+    throw error;
   }
 
   params.delete('hash');
@@ -65,20 +71,26 @@ export function parseAndValidateTelegramInitData(
   const actual = Buffer.from(calculatedHash, 'hex');
 
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-    throw new Error('Invalid Telegram initData hash');
+    const error = new Error('Telegram 授权信息无效，请重新从 Telegram 中打开你的 Bot');
+    Object.assign(error, { statusCode: 401 });
+    throw error;
   }
 
   const authDate = Number(params.get('auth_date') || 0);
   const now = Math.floor(Date.now() / 1000);
 
   if (!authDate || now - authDate > 86400) {
-    throw new Error('Expired Telegram initData');
+    const error = new Error('Telegram 授权已过期，请重新从 Telegram 中打开你的 Bot');
+    Object.assign(error, { statusCode: 401 });
+    throw error;
   }
 
   const userJson = params.get('user');
 
   if (!userJson) {
-    throw new Error('Missing Telegram user payload');
+    const error = new Error('请从 Telegram 中打开你的 Bot');
+    Object.assign(error, { statusCode: 401 });
+    throw error;
   }
 
   const user = JSON.parse(userJson) as InitDataUser;

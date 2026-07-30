@@ -1,12 +1,36 @@
-const API_BASE_URL = process.env.SMOKE_API_BASE_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = process.env.SMOKE_API_BASE_URL || 'http://127.0.0.1:18763';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+let adminToken = '';
+
+async function loginAdmin() {
+  const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      username: ADMIN_USERNAME,
+      password: ADMIN_PASSWORD,
+    }),
+  });
+  const body = await response
+    .json()
+    .catch(() => ({ error: response.statusText }));
+
+  if (!response.ok) {
+    throw new Error(body.error || response.statusText);
+  }
+
+  adminToken = body.token;
+}
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
-    'x-admin-password': ADMIN_PASSWORD,
+    authorization: `Bearer ${adminToken}`,
   };
 
   if (options.body) {
@@ -33,6 +57,8 @@ async function request<T>(
 }
 
 async function main() {
+  await loginAdmin();
+
   const health = await request<{ ok: boolean }>('/health');
 
   if (!health.ok) {
@@ -56,7 +82,7 @@ async function main() {
     body: JSON.stringify({
       telegramUserId,
       videoId: video.id,
-      provider: 'telegram',
+      provider: 'telegram_stars',
       paid: false,
     }),
   });

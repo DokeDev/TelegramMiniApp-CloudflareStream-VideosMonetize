@@ -13,6 +13,8 @@
     "build": "npm run build -w backend && npm run build -w frontend",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "smoke": "npm run smoke -w backend",
+    "setup:webhook": "npm run setup:webhook -w backend",
+    "check:prod-env": "npm run check:prod-env -w backend",
     "prisma:generate": "npm run prisma:generate -w backend",
     "prisma:migrate": "npm run prisma:migrate -w backend",
     "seed": "npm run seed -w backend"

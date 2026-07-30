@@ -1,0 +1,11 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(config|database|src|tests|storage|xlb)(/|$) - [F,L]
+    RewriteRule ^(README\.md|.*\.sql|.*\.log|\.env|\.git)(/|$) - [F,L]
+</IfModule>
+
+<FilesMatch "^(config\.php|config\.example\.php|README\.md|.*\.sql|.*\.log)$">
+    Require all denied
+</FilesMatch>

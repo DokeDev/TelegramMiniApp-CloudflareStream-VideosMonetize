@@ -13,6 +13,12 @@ enum VideoStatus {
   ARCHIVED
 }
 
+enum SeriesStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
 enum OrderStatus {
   PENDING
   PAID
@@ -30,31 +36,69 @@ model User {
   id             Int       @id @default(autoincrement())
   telegramUserId BigInt    @unique
   username       String?   @db.VarChar(191)
+  usernameNormalized String? @db.VarChar(191)
   firstName      String?   @db.VarChar(191)
   lastName       String?   @db.VarChar(191)
   languageCode   String?   @db.VarChar(16)
+  status         String    @default("ACTIVE") @db.VarChar(32)
+  bannedAt       DateTime?
+  banReason      String?   @db.VarChar(255)
+  riskScore      Int       @default(0)
+  creditBalance  Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  orders        Order[]
-  entitlements  Entitlement[]
-  playSessions  PlaySession[]
+  orders              Order[]
+  rechargeOrders      RechargeOrder[]
+  externalRecharges   ExternalCreditRecharge[]
+  entitlements        Entitlement[]
+  playSessions        PlaySession[]
+  creditTransactions  CreditTransaction[]
+  riskEvents          RiskEvent[]
+
+  @@index([status])
+  @@index([riskScore])
+  @@index([usernameNormalized])
 }
 
 model Video {
   id                  Int         @id @default(autoincrement())
+  seriesId            Int?
   title               String      @db.VarChar(191)
   description         String?     @db.Text
+  coverImageUrl       String?     @db.VarChar(500)
   cloudflareVideoUid  String      @db.VarChar(191)
   priceCents          Int
-  currency            String      @default("USD") @db.VarChar(16)
+  priceCredits        Int         @default(0)
+  currency            String      @default("XTR") @db.VarChar(16)
   status              VideoStatus @default(ACTIVE)
+  sortOrder           Int         @default(0)
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
+  series        Series?       @relation(fields: [seriesId], references: [id])
   orders        Order[]
   entitlements  Entitlement[]
   playSessions  PlaySession[]
+  creditTransactions CreditTransaction[]
+
+  @@index([seriesId])
+  @@index([status, sortOrder])
+}
+
+model Series {
+  id          Int          @id @default(autoincrement())
+  title       String       @db.VarChar(191)
+  description String?      @db.Text
+  slug        String       @unique @db.VarChar(191)
+  status      SeriesStatus @default(ACTIVE)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  videos Video[]
+
+  @@index([status, sortOrder])
 }
 
 model Order {
@@ -65,7 +109,7 @@ model Order {
   amountCents       Int
   currency          String      @db.VarChar(16)
   status            OrderStatus @default(PENDING)
-  provider          String      @default("mock") @db.VarChar(64)
+  provider          String      @default("telegram_stars") @db.VarChar(64)
   providerPaymentId String?     @db.VarChar(191)
   paidAt            DateTime?
   createdAt         DateTime    @default(now())
@@ -75,9 +119,96 @@ model Order {
   video         Video         @relation(fields: [videoId], references: [id])
   entitlement   Entitlement?
   playSessions  PlaySession[]
+  creditTransactions CreditTransaction[]
 
   @@index([userId])
   @@index([videoId])
+}
+
+model CreditPackage {
+  id            Int      @id @default(autoincrement())
+  title         String   @db.VarChar(191)
+  starsAmount   Int
+  creditsAmount Int
+  status        String   @default("ACTIVE") @db.VarChar(32)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rechargeOrders RechargeOrder[]
+
+  @@index([status, sortOrder])
+}
+
+model RechargeOrder {
+  id                Int         @id @default(autoincrement())
+  orderCode         String      @unique @db.VarChar(32)
+  userId            Int
+  packageId         Int
+  starsAmount       Int
+  creditsAmount     Int
+  currency          String      @default("XTR") @db.VarChar(16)
+  status            OrderStatus @default(PENDING)
+  provider          String      @default("telegram_stars") @db.VarChar(64)
+  providerPaymentId String?     @db.VarChar(191)
+  paidAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user               User                @relation(fields: [userId], references: [id])
+  package            CreditPackage       @relation(fields: [packageId], references: [id])
+  creditTransactions CreditTransaction[]
+
+  @@index([userId])
+  @@index([packageId])
+  @@index([status])
+}
+
+model ExternalCreditRecharge {
+  id                Int       @id @default(autoincrement())
+  requestId         String    @unique @db.VarChar(80)
+  userId            Int
+  provider          String    @db.VarChar(64)
+  externalPaymentId String?   @db.VarChar(191)
+  amount            Int
+  status            String    @default("PAID") @db.VarChar(32)
+  note              String?   @db.VarChar(255)
+  rawPayload        String?   @db.Text
+  creditedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CreditTransaction {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  orderId       Int?
+  rechargeOrderId Int?
+  videoId       Int?
+  amount        Int
+  balanceAfter  Int
+  type          String   @db.VarChar(32)
+  note          String?  @db.VarChar(255)
+  createdAt     DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+  rechargeOrder RechargeOrder? @relation(fields: [rechargeOrderId], references: [id])
+  video Video? @relation(fields: [videoId], references: [id])
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([rechargeOrderId])
+  @@index([videoId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model Entitlement {
@@ -115,10 +246,46 @@ model PlaySession {
   video   Video       @relation(fields: [videoId], references: [id])
   order   Order       @relation(fields: [orderId], references: [id])
   events  PlayEvent[]
+  riskEvents RiskEvent[]
 
   @@index([userId])
   @@index([videoId])
   @@index([orderId])
+}
+
+model RiskEvent {
+  id            Int       @id @default(autoincrement())
+  userId        Int?
+  playSessionId Int?
+  type          String    @db.VarChar(64)
+  severity      Int       @default(1)
+  status        String    @default("OPEN") @db.VarChar(32)
+  message       String    @db.VarChar(255)
+  metadata      String?   @db.Text
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  user        User?        @relation(fields: [userId], references: [id])
+  playSession PlaySession? @relation(fields: [playSessionId], references: [id])
+
+  @@index([userId])
+  @@index([playSessionId])
+  @@index([type])
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+model PolicyDocument {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique @db.VarChar(64)
+  title     String   @db.VarChar(191)
+  content   String   @db.Text
+  status    String   @default("PUBLISHED") @db.VarChar(32)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }
 
 model PlayEvent {
