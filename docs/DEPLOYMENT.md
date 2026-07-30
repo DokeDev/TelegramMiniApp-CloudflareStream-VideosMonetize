@@ -20,7 +20,7 @@
 
 ```text
 https://your-domain.example/
-https://your-domain.example/cpl
+https://your-domain.example/admin
 https://your-domain.example/api/...
 ```
 
@@ -250,7 +250,7 @@ https://your-domain.example/
 如果只开放后台给管理员使用，建议不要公开传播：
 
 ```text
-https://your-domain.example/cpl
+https://your-domain.example/admin
 ```
 
 ## Cloudflare Stream
@@ -286,7 +286,7 @@ curl https://your-domain.example/ready
 进入后台检查：
 
 ```text
-https://your-domain.example/cpl
+https://your-domain.example/admin
 ```
 
 检查项：

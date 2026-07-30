@@ -10,6 +10,6 @@ window.Telegram?.WebApp?.MainButton?.hide();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {window.location.pathname.startsWith('/cpl') ? <AdminApp /> : <App />}
+    {window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/cpl') ? <AdminApp /> : <App />}
   </React.StrictMode>,
 );

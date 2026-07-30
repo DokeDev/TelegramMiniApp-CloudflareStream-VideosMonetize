@@ -64,7 +64,7 @@ Telegram Mini App
 
 ### 运营后台
 
-- `/cpl` 后台路径
+- `/admin` 后台路径
 - 管理员用户名/密码登录
 - 登录失败限制，防撞库
 - 后台 Bearer token 会话
@@ -161,7 +161,7 @@ npm run dev
 
 ```text
 前台：http://localhost:19327
-后台：http://localhost:19327/cpl
+后台：http://localhost:19327/admin
 后端：http://localhost:18763
 ```
 
@@ -179,7 +179,7 @@ npm run smoke
 
 ```text
 https://your-domain.example/
-https://your-domain.example/cpl
+https://your-domain.example/admin
 https://your-domain.example/api/...
 ```
 
