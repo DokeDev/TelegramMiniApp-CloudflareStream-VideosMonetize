@@ -2,8 +2,6 @@
 
 一个基于 **Telegram Mini App + Cloudflare Stream + Node.js + MySQL** 的视频付费访问系统。项目包含 Mini App 前台、运营后台、Telegram Stars 支付、Cloudflare Stream 私密播放、订单/权限/播放记录、播放器水印、风控日志和服务端积分充值接口。
 
-本项目适合用于学习、二次开发，或搭建合规的视频内容付费访问系统。默认品牌已通用化为 `TG Video`，所有真实 Token、域名、Logo、配置和线上数据都不应提交到仓库。
-
 ## 免责声明
 
 本项目仅供合法合规用途使用。使用者必须确保所售卖、分发、存储、展示、传播的视频内容拥有合法版权、授权或其他合法权利，并遵守所在国家或地区的法律法规、平台规则、支付服务规则、Cloudflare 服务条款以及 Telegram 相关规则。
