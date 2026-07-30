@@ -1,8 +1,0 @@
-config/config.php
-*.log
-.DS_Store
-public/.DS_Store
-storage/
-xlb/
-public/*.zip
-public/assets/img/logo.png

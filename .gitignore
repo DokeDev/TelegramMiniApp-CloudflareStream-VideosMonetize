@@ -10,7 +10,4 @@ frontend/.env.local
 *.tsbuildinfo
 backend/generated/
 frontend/dist/
-external-payment-php/xlb/
-external-payment-php/public/*.zip
-external-payment-php/storage/
 frontend/public/assets/img/logo.png

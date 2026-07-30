@@ -9,8 +9,4 @@ backend/dist
 frontend/dist
 frontend/tsconfig.tsbuildinfo
 npm-debug.log
-external-payment-php/config/config.php
-external-payment-php/storage
-external-payment-php/xlb
-external-payment-php/public/*.zip
 frontend/public/assets/img/logo.png

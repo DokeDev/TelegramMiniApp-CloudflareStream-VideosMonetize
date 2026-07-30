@@ -206,7 +206,7 @@ export async function registerRoutes(app: FastifyInstance) {
         telegramUserId: z.coerce.bigint(),
         username: z.string().trim().optional(),
         amount: z.coerce.number().int().positive(),
-        provider: z.string().trim().min(1).max(64).default('external_h5'),
+        provider: z.string().trim().min(1).max(64).default('external_server'),
         externalPaymentId: z.string().trim().max(191).optional(),
         note: z.string().trim().max(255).optional(),
       })

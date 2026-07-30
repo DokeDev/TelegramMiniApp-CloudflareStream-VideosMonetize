@@ -2449,15 +2449,15 @@ export function AdminApp() {
               </div>
               <section className="sub-panel">
                 <div className="panel-title-row">
-                  <h2>外部 H5 充值记录</h2>
+                  <h2>外部服务端充值记录</h2>
                   <span className="muted-text">
-                    对接流程：查账号 /api/external/users/lookup，支付成功后回调
+                    对接流程：查账号 /api/external/users/lookup，收款成功后调用
                     /api/external/credits/recharge
                   </span>
                 </div>
                 <p className="muted-text">
-                  外部 H5 服务端使用 x-external-recharge-secret 调用；用户输入 @username
-                  后先查项目账号，创建支付订单时锁定 telegramUserId，到账时按锁定账号入账。
+                  外部服务端使用 x-external-recharge-secret 调用；创建外部订单时锁定
+                  telegramUserId，到账时按锁定账号入账。
                 </p>
                 <DataTable
                   headers={['Request ID', '用户', '渠道', '积分', '状态', '到账时间']}

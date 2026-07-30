@@ -1,6 +1,6 @@
 # Telegram Mini App + Cloudflare Stream Videos Monetize
 
-一个基于 **Telegram Mini App + Cloudflare Stream + Node.js + MySQL** 的视频付费访问系统。项目包含 Mini App 前台、运营后台、Telegram Stars 支付、Cloudflare Stream 私密播放、订单/权限/播放记录、播放器水印、风控日志，以及一个可选的 PHP 独立 H5 积分充值站。
+一个基于 **Telegram Mini App + Cloudflare Stream + Node.js + MySQL** 的视频付费访问系统。项目包含 Mini App 前台、运营后台、Telegram Stars 支付、Cloudflare Stream 私密播放、订单/权限/播放记录、播放器水印、风控日志和服务端积分充值接口。
 
 本项目适合用于学习、二次开发，或搭建合规的视频内容付费访问系统。默认品牌已通用化为 `TG Video`，所有真实 Token、域名、Logo、配置和线上数据都不应提交到仓库。
 
@@ -29,12 +29,6 @@ Telegram Mini App
   -> Telegram Stars / Webhook
   -> Cloudflare Stream signed playback
   -> 播放器水印、播放 session、播放事件
-
-可选：
-Independent H5 Pay (PHP)
-  -> 易支付/keke_pay
-  -> 主项目外部充值接口
-  -> 项目积分到账
 ```
 
 ### 为什么使用 Cloudflare Stream
@@ -84,7 +78,7 @@ Independent H5 Pay (PHP)
 - 批量导入系列/视频
 - Stars 订单管理
 - 项目积分订单管理
-- 外部 H5 充值记录
+- 外部服务端充值记录
 - 手动发放/撤销权限
 - 用户搜索、详情、积分调整
 - 用户黑名单/封禁管理
@@ -93,23 +87,6 @@ Independent H5 Pay (PHP)
 - 活动日志和后台操作审计
 - 开发工具：测试用户、测试订单、模拟支付、清理播放记录
 
-### 独立 H5 支付站
-
-目录：[`external-payment-php`](./external-payment-php)
-
-- PHP 8.3 + Apache 2.4 + MySQL 8.0
-- 独立订单表和后台
-- 用户输入 Telegram username 后先查主项目账号
-- 支付成功后通过服务端密钥调用主项目充值接口
-- 支持 keke_pay / 易支付模式
-- 支持支付宝和 USDT 开关
-- 回调验签、金额校验、幂等到账
-- 订单详情、补单、删除订单
-- 支付失败日志、清空日志
-- 宝塔 `open_basedir` 兼容说明
-
-Mini App 内的数字内容购买应优先使用 Telegram Stars。独立 H5 支付站适合作为项目积分充值的外部扩展，使用前请自行确认平台和支付渠道规则。
-
 ## 技术栈
 
 - 前端：React + TypeScript + Vite
@@ -117,7 +94,6 @@ Mini App 内的数字内容购买应优先使用 Telegram Stars。独立 H5 支�
 - 数据库：MySQL 8.0 + Prisma
 - 视频：Cloudflare Stream
 - Mini App 支付：Telegram Stars
-- 可选独立支付：PHP 8.3 + keke_pay / 易支付
 - 图标：lucide-react
 
 ## 目录结构
@@ -127,7 +103,6 @@ Mini App 内的数字内容购买应优先使用 Telegram Stars。独立 H5 支�
 ├── backend                 Node.js API、Prisma、Webhook、后台接口
 ├── frontend                React Mini App 和后台页面
 ├── docs                    部署文档
-├── external-payment-php    可选独立 H5 积分充值站
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
@@ -289,9 +264,9 @@ https://your-domain.example/api/telegram/webhook
 npm run setup:webhook
 ```
 
-## 外部 H5 积分充值接口
+## 服务端积分充值接口
 
-独立服务端调用主项目接口时必须携带：
+外部服务端调用主项目积分充值接口时必须携带：
 
 ```text
 x-external-recharge-secret: EXTERNAL_RECHARGE_SECRET
@@ -319,9 +294,9 @@ Content-Type: application/json
   "telegramUserId": "123456789",
   "username": "@TestUser",
   "amount": 320,
-  "provider": "external_h5",
+  "provider": "external_server",
   "externalPaymentId": "pay-0001",
-  "note": "独立 H5 积分充值"
+  "note": "服务端积分充值"
 }
 ```
 
@@ -363,10 +338,6 @@ Content-Type: application/json
 ### Cloudflare 未配置能不能测试
 
 可以。未配置时会走演示播放地址，方便先测试订单、权限、水印、播放 session 和后台流程。
-
-### 独立 H5 支付点击后不跳转
-
-检查支付页响应头 `Content-Security-Policy` 中的 `form-action` 是否允许易支付网关域名；同时确认浏览器没有缓存旧的 `/assets/app.js`。新版支付页会给脚本和样式自动追加版本号。
 
 ## 许可证
 
